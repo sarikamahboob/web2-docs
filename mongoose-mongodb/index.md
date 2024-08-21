@@ -87,3 +87,153 @@ db.test.find({ age: {$lt: 17}})
 // example
 db.test.find({ age: {$lte: 17}})
 ```
+## 5-4 $in, $nin, implicit and condition
+- **implicit-and** when two expressions are separated by a comma
+```js
+// syntax
+{ field: { condition1, condition2 } }
+
+// example-1
+// age is greater then 18 but less than 30
+db.test.find({ age: { $gt: 18, $lt: 30 } }, { age: 1 }).sort({ age: 1 })
+
+//example-2
+db.test
+    .find(
+        { gender: 'Female', age: { $gte: 18, $lte: 30 } },
+        { age: 1, gender: 1 }
+    )
+    .sort({ age: 1 })
+```
+- $in this in operator matches any of the values specified in an array.
+```js
+// syntax
+{ field: { $nin: [ <value1>, <value2> ... <valueN> ] } }
+
+// example
+db.test
+    .find(
+        { gender: 'Female', age: { $in: [18, 20, 22, 24] } },
+        { age: 1, gender: 1 }
+    )
+    .sort({ age: 1 })
+```
+- $nin this matches none of the values specified in an array.
+```js
+// syntax
+{ field: { $nin: [ <value1>, <value2> ... <valueN> ] } }
+
+// example
+db.test
+    .find(
+        { gender: 'Female', age: { $nin: [18, 20, 22, 24] } },
+        { age: 1, gender: 1 }
+    )
+    .sort({ age: 1 })
+```
+- using $in and $nin both
+```js
+// example
+db.test
+    .find(
+        { 
+            gender: 'Female', 
+            age: { $nin: [18, 20, 22, 24] } ,
+            interests: { $in : ["Cooking", "Gaming"] }
+        },
+        { age: 1, gender: 1, interests: 1 }
+    )
+    .sort({ age: 1 })
+```
+
+## 5-5 $and, $or, implicit vs explicit
+- $and operator joins query clauses with a logical AND returns all documents that match the conditions of both clauses.
+```js
+//syntax
+{ $and: [ { <expression1> }, { <expression2> } , ... , { <expressionN> } ] }
+
+// example
+db.test
+    .find(
+        {
+            $and: [
+                { gender: "Female" },
+                { age: { $ne: 15 } },
+                { age: { $lte: 30 } },
+            ]
+        },
+        { age: 1 }
+    )
+    .sort({ age: 1 })
+```
+- $or operator joins query clauses with a logical OR returns all documents that match the conditions of either clause. This is called explicit or.
+```js
+//syntax
+{ $or: [ { <expression1> }, { <expression2> }, ... , { <expressionN> } ] }
+
+// example-1
+db.test
+    .find(
+        {
+            $or: [
+                { interests: "Travelling" },
+                { interests: "Cooking" },
+                { interests: "Gaming" },
+            ]
+        },
+        { interests: 1 }
+    )
+// example-2 
+// array of objects in an array
+db.test
+    .find(
+        {
+            $or: [
+               {"skills.name" : "JAVASCRIPT"},
+               {"skills.name" : "PYTHON"},
+            ]
+        },
+        { "skills.name": 1 }
+    )
+```
+- use $in operator as the **implicit or**.
+```js
+// example
+db.test
+    .find(
+        {
+            "skills.name" : { $in : ["JAVASCRIPT" , "PYTHON"] },
+        },
+        { "skills.name": 1 }
+    )
+```
+- $not this not operator inverts the effect of a query expression and returns documents that do not match the query expression.
+```js
+// syntax
+{ field: { $not: { <operator-expression> } } }
+
+// example
+// age is not greater than or equal to 18
+db.test
+    .find(
+        {
+            age: { $not: { $gte: 18 } }
+        },
+        { age: 1 }
+    )
+```
+- $nor this nor operator joins query clauses with a logical NOR returns all documents that fail to match both clauses.
+```js
+// syntax
+{ $nor: [ { <expression1> }, { <expression2> }, ...  { <expressionN> } ] }
+
+// example
+db.test
+    .find(
+        {
+            $nor: [{ age: 8 }, { age: 20 }, { age: 59 }]
+        },
+        { age: 1 }
+    )
+    .sort({ age: 1 })
+```

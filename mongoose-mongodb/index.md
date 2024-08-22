@@ -183,6 +183,7 @@ db.test
         },
         { interests: 1 }
     )
+
 // example-2 
 // array of objects in an array
 db.test
@@ -236,4 +237,56 @@ db.test
         { age: 1 }
     )
     .sort({ age: 1 })
+```
+## 5-6 $exists, $type, $size
+-  $exists operator matches documents that have the specified field.
+```js
+// syntax
+{ field: { $exists: <boolean> } }
+
+// example
+// if there is phone field exits then it will fulfill the condition whether there is phone field exists or not. It wont see the value of the field
+db.test
+    .find({
+        phone: { $exists: true }
+    })
+```
+- $type operator selects documents if a field is of the specified type.
+```js
+// syntax-1
+{ field: { $type: <BSON type> } }
+```
+```js
+// syntax-2
+{ field: { $type: [ <BSON type1> , <BSON type2>, ... ] } }
+```
+```js
+// example-1
+db.test
+    .find({
+        age: { $type: "number" }
+    })
+
+// example-2
+db.test
+    .find({
+        friends: { $type: "array" }
+    })
+```
+- $size operator matches any array with the number of elements specified by the argument. It only works for arrays.
+```js
+// syntax
+{ field: { $size: value } }
+
+// example-1
+db.test
+    .find({
+        friends: { $size: 4 }
+    })
+
+// example-2
+db.test
+    .find({
+        friends: { $size: 0 }
+    })
 ```

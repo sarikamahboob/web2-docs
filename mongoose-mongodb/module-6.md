@@ -323,3 +323,190 @@ db.test.aggregate(
 )
 ```
 ## 6-4 explore more about $group & $project
+- The following aggregation operation uses the $group stage to count the number of documents in the collection.
+```js
+// syntax
+db.collection.aggregate( [ { $group : { _id : "$item" } } ] )
+
+// example
+db.test.aggregate([
+    // stage-1
+    {
+        $group: {
+            _id: null,
+            totalSalary: { $sum: "$salary" }
+        }
+    },
+])
+```
+- $max returns the maximum value.
+```js
+// syntax
+{ $max: <expression> }
+
+// examples
+db.test.aggregate([
+    // stage-1
+    {
+        $group: {
+            _id: null,
+            totalSalary: { $sum: "$salary" },
+            maxSalary: { $max: "$salary" }
+        }
+    },
+])
+```
+- $min returns the minimum value. 
+```js
+// syntax
+{ $min: <expression> }
+
+// examples
+db.test.aggregate([
+    // stage-1
+    {
+        $group: {
+            _id: null,
+            totalSalary: { $sum: "$salary" },
+            maxSalary: { $max: "$salary" },
+            minSalary: { $min: "$salary" },
+        }
+    },
+])
+```
+- $avg returns the average value of the numeric values.
+```js
+// syntax
+{ $avg: <expression> }
+
+// examples
+db.test.aggregate([
+    // stage-1
+    {
+        $group: {
+            _id: null,
+            totalSalary: { $sum: "$salary" },
+            maxSalary: { $max: "$salary" },
+            minSalary: { $min: "$salary" },
+            avgSalary: { $avg: "$salary" },
+        }
+    },
+])
+```
+- using $project to modify the name 
+```js
+// examples
+db.test.aggregate([
+    // stage-1
+    {
+        $group: {
+            _id: null,
+            totalSalary: { $sum: "$salary" },
+            maxSalary: { $max: "$salary" },
+            minSalary: { $min: "$salary" },
+            avgSalary: { $avg: "$salary" },
+        }
+    },
+    // stage-2
+    {
+        $project: {
+            totalSalary: 1,
+            maxSalary: 1,
+            minimumSalary: "$minSalary",
+            avarageSalary: "$avgSalary",
+        }
+    }
+])
+```
+- $subtract subtracts two numbers to return the difference, or two dates to return the difference in milliseconds, or a date and a number in milliseconds to return the resulting date
+```js
+// syntax
+{ $subtract: [ <expression1>, <expression2> ] }
+
+// examples
+db.test.aggregate([
+    // stage-1
+    {
+        $group: {
+            _id: null,
+            totalSalary: { $sum: "$salary" },
+            maxSalary: { $max: "$salary" },
+            minSalary: { $min: "$salary" },
+            avgSalary: { $avg: "$salary" },
+        }
+    },
+    // stage-2
+    {
+        $project: {
+            totalSalary: 1,
+            maxSalary: 1,
+            miimumSalary: "$minSalary",
+            avarageSalary: "$avgSalary",
+            rangeBetweenMaxAndMIn: {$subtract: ["$maxSalary", "$minSalary"]}
+        }
+    }
+])
+```
+## 6-5 Explore $group with $unwind aggregation stage
+- $unwind deconstructs an array field from the input documents to output a document for each element. Each output document is the input document with the value of the array field replaced by the element.
+```js
+// syntax
+{ $unwind: <field path> }
+
+// example-1
+db.test.aggregate([
+    // stage-1
+    {
+        $unwind: "$friends"
+    },
+    // stage-2
+    {
+        $group: { 
+            _id: "$friends", 
+            count: {$sum: 1}
+        }
+    }
+])
+// example-2
+db.test.aggregate([
+    // stage-1
+    {
+        $unwind: "$interests"
+    },
+    // stage-2
+    {
+        $group: {
+            _id: "$age",
+            interestsPerAge: { $push: "$interests" }
+        }
+    }
+])
+```
+-
+```js
+// syntax
+
+// examples
+
+```
+-
+```js
+// syntax
+
+// examples
+
+```
+-
+```js
+// syntax
+
+// examples
+
+```
+-
+```js
+// syntax
+
+// examples
+
+```

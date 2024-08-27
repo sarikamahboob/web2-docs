@@ -482,19 +482,239 @@ db.test.aggregate([
     }
 ])
 ```
--
+## 6-6 $bucket, $sort, and $limit aggregation stage
+- $bucket categorizes incoming documents into groups, called buckets, based on a specified expression and bucket boundaries and outputs a document per each bucket. Each output document contains an _id field whose value specifies the inclusive lower bound of the bucket. The output option specifies the fields included in each output document.
+
+- $bucket only produces output documents for buckets that contain at least one input document.
 ```js
 // syntax
+{
+  $bucket: {
+      groupBy: <expression>,
+      boundaries: [ <lowerbound1>, <lowerbound2>, ... ],
+      default: <literal>,
+      output: {
+         <output1>: { <$accumulator expression> },
+         ...
+         <outputN>: { <$accumulator expression> }
+      }
+   }
+}
 
-// examples
+// examples-1
+db.test.aggregate([
+    // stage-1
+    {
+        $bucket: {
+            groupBy: "$age",
+            boundaries: [20, 40, 60, 80],
+            default: "80 up aged persons",
+            output: {
+                count: { $sum: 1 },
+                personName: { $push: "$name" }
+            }
+        }
+    },
+])
 
+// example-2
+db.test.aggregate([
+    // stage-1
+    {
+        $bucket: {
+            groupBy: "$age",
+            boundaries: [20, 40, 60, 80],
+            default: "80 up aged persons",
+            output: {
+                count: { $sum: 1 },
+                personName: { $push: "$$ROOT" }
+            }
+        }
+    },
+])
+
+// example-3
+// always use sort before limit
+db.test.aggregate([
+    // stage-1
+    {
+        $bucket: {
+            groupBy: "$age",
+            boundaries: [20, 40, 60, 80],
+            default: "80 up aged persons",
+            output: {
+                count: { $sum: 1 },
+                personName: { $push: "$$ROOT" }
+            }
+        }
+    },
+    // stage-2
+    {
+        $sort: { count: -1 }
+    },
+    // stage-3
+    {
+        $limit: 2,
+    },
+    // stage-4
+    {
+        $project: {
+            count: 1
+        }
+    }
+])
 ```
--
+## 6-7 $facet, multiple pipeline aggregation stage
+- The $facet stage allows us to create multi-faceted aggregations which characterize data across multiple dimensions, or facets, within a single aggregation stage. Multi-faceted aggregations provide multiple filters and categorizations to guide data browsing and analysis.
 ```js
 // syntax
+{ $facet:
+    {
+      <outputField1>: [ <stage1>, <stage2>, ... ],
+      <outputField2>: [ <stage1>, <stage2>, ... ],
+      ...
+
+    }
+}
 
 // examples
+db.test.aggregate([
+    // stage-1
+    {
+        $facet: {
+            // pipleline-1
+            "friendsCount": [
+                // stage-1
+                { $unwind: "$friends" },
+                // stage-2
+                {
+                    $group:
+                    {
+                        _id: "$friends",
+                        count: { $sum: 1 }
+                    },
+                }
+            ],
+            // pipleline-2
+            "educationCount": [
+                // stage-1
+                { $unwind: "$education" },
+                // stage-2
+                {
+                    $group:
+                    {
+                        _id: "$education",
+                        count: { $sum: 1 }
+                    },
+                }
+            ],
+            // pipleline-3
+            "skillsCount": [
+                // stage-1
+                { $unwind: "$skills" },
+                {
+                    $group: {
+                        _id: "$skills",
+                        count: { $sum: 1 }
+                    }
+                }
+            ]
+        }
+    },
+])
+```
+## 6-8 $lookup stage, embedding vs referencing.mp4
+- Embededdedd
+    - one to one relationships
+    - frequent reading data
+    -  atomic updates
+    - reduced network overhead
+    - small data size
+- Referencing
+    - one to many relationships
+    - many to many
+    - frequent writing
+    - big data size
+    - scalability
+    - flexibility
 
+- $lookup performs a left outer join to a collection in the same database to filter in documents from the "joined" collection for processing. The $lookup stage adds a new array field to each input document. The new array field contains the matching documents from the "joined" collection. The $lookup stage passes these reshaped documents to the next stage.
+```js
+// syntax
+{
+   $lookup:
+     {
+       from: <collection to join>,
+       localField: <field from the input documents>,
+       foreignField: <field from the documents of the "from" collection>,
+       as: <output array field>
+     }
+}
+
+// examples
+db.orders.aggregate([
+    {
+        $lookup: {
+               from: "test",
+               localField: "userId",
+               foreignField: "_id",
+               as: "user"
+             }
+    }
+])
+```
+## 6-9 What is indexing, COLLSCAN vs IXSCAN
+- With indexing we can do faster query in database.
+    - normal scan is called the COLSCAN. 
+    -  while do the index, that time it is called IXSCAN
+- by default, mongodb provides a unique id and make an index of that unique id
+- indexing will consume memories. For big data sets we will use indexing
+```js
+// example-1
+// do ixscan
+db.test.find({_id : ObjectId("6406ad63fc13ae5a40000065")}).explain("executionStats")
+
+// example-2
+// do collscan
+db.test.find({email : "mdangl1@odnoklassniki.ru"}).explain("executionStats")
+
+// example-3
+// doing indexing on email 
+db.getCollection("massive-data").createIndex({
+    email: 1
+})
+```
+## 6-10 Explore compound index and text index
+- for removing indexing
+```js
+// example-1
+db.getCollection("massive-data").dropIndex({
+    email: 1
+})
+```
+- compound indexes collect and sort data from two or more fields in each document in a collection.
+```js
+// examples
+db.getCollection("massive-data").createIndex({
+    gender: -1,
+    age: 1
+})
+```
+- search index creation. this is called text indexing
+```js
+// examples
+db.getCollection("massive-data").createIndex({
+    about: "text"
+})
+```
+- search document by a word
+```js
+// examples
+db.getCollection("massive-data").find({
+    $text: { $search: "dolor" }
+}).project({
+    about: 1
+})
 ```
 -
 ```js

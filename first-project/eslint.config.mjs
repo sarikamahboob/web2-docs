@@ -8,19 +8,25 @@ export default [
     files: ["**/*.{js,mjs,cjs,ts}"]
   },
   {
-    languageOptions: { globals: globals.browser }
+    extends: ["eslint:recommended", "plugin:@typescript-eslint/recommended", "prettier"],
+  },
+  {
+    languageOptions: {
+      globals:
+        { process: "readonly" },
+    }
   },
   {
     rules: {
-    "no-unused-vars": "error",
-    "no-unused-expressions": "error",
-    "prefer-const" : "error",
-    "no-console" : "off",
-    "no-undefined" : "error",
+      "no-unused-vars": "error",
+      "no-unused-expressions": "error",
+      "prefer-const": "error",
+      "no-console": "warn",
+      "no-undefined": "error",
     },
-    globals: {
-      "process": "readonly",
-    }
+    // globals: {
+    //   process: "readonly"
+    // }
   },
   pluginJs.configs.recommended,
   ...tseslint.configs.recommended,

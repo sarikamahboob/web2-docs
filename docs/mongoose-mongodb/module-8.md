@@ -76,5 +76,23 @@ export default [
 ```js
 // install prettier as dev dependency
 npm install --save-dev prettier
+// install this package for avoiding conflicts between perttier and eslint
+npm install --save-dev eslint-config-prettier
 ```
 - create a file named .prettierrc.json
+```js
+{
+  "semi": false, 
+  "singleQuote": true
+}
+```
+- add this script to the package.json file
+```js
+"prettier": "prettier --ignore-path .gitignore --write \"./src/**/*.+(js|ts|json)\"",
+"prettier:fix" : "npx prettier --write src",
+```
+- add this scripts to the vscode setting.json file
+```js
+"editor.defaultFormatter": "esbenp.prettier-vscode",
+"editor.formatOnSave": true,
+```

@@ -176,7 +176,7 @@ npm i ts-node-dev --save-dev
 ```js
 export type UserName = {
   firstName: string
-  middleName: string
+  middleName?: string
   lastName: string
 }
 
@@ -199,7 +199,7 @@ export type LocalGuardian = {
 export type Student = {
   id: string
   name: UserName
-  gender: 'male' | 'female'
+  gender: 'male' | 'female' | 'other'
   dataOfBirth: string
   email: string
   contactNo: string
@@ -285,22 +285,36 @@ const localGuardianSchema = new Schema<LocalGuardian>({
 
 const studentSchema = new Schema<Student>({
   id: { type: String },
-  name: userNameSchema,
-  gender: ['male', 'female'],
+  name: {
+    type: userNameSchema,
+    required: true,
+  },
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other'],
+    required: true
+  },
   dateOfBirth: { type: String },
   email: { type: String, required: true },
   contactNo: { type: String, required: true },
   emergencyContactNo: { type: String, required: true },
-  bloodGroup: ['A+', 'A-', 'AB+', 'AB-', 'B+', 'B+', 'O+', 'O-'],
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'AB+', 'AB-', 'B+', 'B+', 'O+', 'O-'],
+  },
   presentAddress: { type: String, required: true },
   permanentAddress: { type: String, required: true },
   guardian: guardianSchema,
   localGuardian: localGuardianSchema,
   profileImage: { type: String },
-  isActive: ['active', 'blocked'],
+  isActive: {
+    type: String,
+    enum: ['active', 'blocked'],
+    default: 'active',
+  },
 })
 
-const Student = model<Student>('Student', studentSchema)
+export const StudentModel = model<Student>('Student', studentSchema)
 ```
 ## 8-8 Create route , service and controller
 - Client => <= route.ts => <= controller.ts => <= service.ts => <= database
@@ -434,7 +448,7 @@ export const StudentServices = {
   getSingleStudentFromDB
 }
 ```
-- before git pus run this commands
+- before git push run this commands
 ```js
 npm run lint
 npm run prettier

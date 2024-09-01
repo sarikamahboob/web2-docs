@@ -753,3 +753,172 @@ export const StudentServices = {
   getSingleStudentFromDB,
 }
 ```
+## 9-7 Implement a custom static method
+- student.interface.ts
+```js
+import { Model } from "mongoose"
+
+export type TUserName = {
+  firstName: string
+  middleName?: string
+  lastName: string
+}
+
+export type TGuardian = {
+  fatherName: string
+  fatherOccupation: string
+  fatherContactNo: string
+  motherName: string
+  motherOccupation: string
+  motherContactNo: string
+}
+
+export type TLocalGuardian = {
+  name: string
+  occupation: string
+  contactNo: string
+  address: string
+}
+
+export type TStudent = {
+  id: string
+  name: TUserName
+  gender: 'male' | 'female' | 'other'
+  dateOfBirth?: string
+  email: string
+  contactNo: string
+  emergencyContactNo: string
+  bloodGroup?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'
+  presentAddress: string
+  permanentAddress: string
+  guardian: TGuardian
+  localGuardian: TLocalGuardian
+  profileImage?: string
+  isActive: 'active' | 'blocked'
+}
+
+/***for creating a custom static method***/
+export interface StudentModel extends Model<TStudent> {
+  isUserExist(id: string): Promise<TStudent | null>
+}
+
+```
+- student.model.ts
+```js
+import { Schema, model } from 'mongoose'
+import {
+  StudentModel,
+  TGuardian,
+  TLocalGuardian,
+  TStudent,
+  TUserName,
+} from './student.interface'
+import validator from 'validator'
+
+const userNameSchema = new Schema<TUserName>({
+  firstName: {
+    type: String,
+    required: [true, 'first name is required'],
+    trim: true,
+    maxlength: [20, 'first name can not be more than 20'],
+    validate: {
+      validator: function (value: string) {
+        const firstNameStr = value.charAt(0).toUpperCase() + value.slice(1)
+        return firstNameStr === value
+      },
+      message: `{VALUE} is not in capitalize format`,
+    },
+  },
+  middleName: { type: String },
+  lastName: {
+    type: String,
+    required: [true, 'last name is required'],
+    validate: {
+      validator: (value: string) => validator.isAlpha(value),
+      message: `{VALUE} is not valid`,
+    },
+  },
+})
+
+const guardianSchema = new Schema<TGuardian>({
+  fatherName: { type: String, required: true },
+  fatherOccupation: { type: String, required: true },
+  fatherContactNo: { type: String, required: true },
+  motherName: { type: String, required: true },
+  motherOccupation: { type: String, required: true },
+  motherContactNo: { type: String, required: true },
+})
+
+const localGuardianSchema = new Schema<TLocalGuardian>({
+  name: { type: String, required: true },
+  occupation: { type: String, required: true },
+  contactNo: { type: String, required: true },
+  address: { type: String, required: true },
+})
+
+/***creating a custom static method ***/
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: true },
+  name: { type: userNameSchema, required: true },
+  gender: {
+    type: String,
+    enum: {
+      values: ['male', 'female', 'other'],
+      message:
+        "{VALUE} is not valid. The gender field can only be of the following: 'male', 'female', 'other'",
+    },
+    required: true,
+  },
+  dateOfBirth: { type: String },
+  email: {
+    type: String,
+    required: true,
+    validate: {
+      validator: (value: string) => validator.isEmail(value),
+      message: '{VALUE} is not a valid email',
+    },
+  },
+  contactNo: { type: String, required: true },
+  emergencyContactNo: { type: String, required: true },
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'AB+', 'AB-', 'B+', 'B+', 'O+', 'O-'],
+  },
+  presentAddress: { type: String, required: true },
+  permanentAddress: { type: String, required: true },
+  guardian: { type: guardianSchema, required: true },
+  localGuardian: { type: localGuardianSchema, required: true },
+  profileImage: { type: String },
+  isActive: {
+    type: String,
+    enum: ['active', 'blocked'],
+    default: 'active',
+  },
+})
+studentSchema.statics.isUserExist = async function (id: string) {
+  const existingUser = await Student.findOne({ id })
+  return existingUser
+}
+
+export const Student = model<TStudent, StudentModel>('Student', studentSchema)
+```
+- student.service.ts
+```js
+import { TStudent } from './student.interface'
+import { Student } from './student.model'
+
+
+const createStudentIntoDB = async (studentData: TStudent) => {
+  if (await Student.isUserExist(studentData.id)) { 
+    throw new Error(`user already exists`)
+  }
+  const result = await Student.create(studentData) // built-in static method
+  // const student = new Student(studentData) // create an instance
+  // if(await student.isUserExist(studentData.id)) {
+  //   throw new Error(`user already exists`)
+  // }
+  // const result = student.save() // built-in instance method
+  return result
+}
+```
+## 9-8 Implement mongoose middleware part

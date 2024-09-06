@@ -922,3 +922,375 @@ const createStudentIntoDB = async (studentData: TStudent) => {
 }
 ```
 ## 9-8 Implement mongoose middleware part
+- mongoose middleware is known as `mongoose hooks`
+  - document middleware
+  - query middleware
+  - aggregation middleware
+```js
+npm i bcrypt
+npm install --save @types/bcrypt
+```
+- add password to the student.interface.ts
+```js
+export type TStudent = {
+  id: string
+  password: string
+  name: TUserName
+  gender: 'male' | 'female' | 'other'
+  dateOfBirth?: string
+  email: string
+  contactNo: string
+  emergencyContactNo: string
+  bloodGroup?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'
+  presentAddress: string
+  permanentAddress: string
+  guardian: TGuardian
+  localGuardian: TLocalGuardian
+  profileImage?: string
+  isActive: 'active' | 'blocked'
+}
+```
+- add password in the student.zod.validation.ts
+```js
+const studentValidationSchema = z.object({
+  id: z
+    .string()
+    .min(1, { message: 'ID is required' }),
+  password: z.string().min(1, { message: 'Password is required' }).max(20, { message: 'Password cannot be more than 20 characters' }),
+})
+```
+- add password in the student.model.ts and make mongoose pre hook middleware
+```js
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: [true, 'ID is required'] },
+  password: { type: String, required: [true, 'password is required'], maxlength: [20, 'password cannot be more than 20 characters'] },
+})
+
+// pre save middleware/hook
+// will work on create() and save()
+studentSchema.pre('save', async function(next) {
+  // hashing password and save into database
+  // eslint-disable-next-line @typescript-eslint/no-this-alias
+  const user = this
+  user.password = await bcrypt.hash(user.password, Number(config.bcrypt_salt_rounds))
+  next()
+})
+
+// post save middleware/hook
+studentSchema.post('save', function() {
+  console.log(this, 'post hook: we saved the data')
+})
+
+studentSchema.statics.isUserExist = async function (id: string) {
+  const existingUser = await Student.findOne({ id })
+  return existingUser
+}
+
+export const Student = model<TStudent, StudentModel>('Student', studentSchema)
+```
+- add environmental variable to the .env
+```js
+BCRYPT_SALT_ROUNDS=12
+```
+- add the environment variable to the config
+```js
+import dotenv from 'dotenv'
+import path from 'path'
+
+dotenv.config({ path: path.join(process.cwd(), '.env') })
+
+export default {
+  port: process.env.PORT,
+  database_url: process.env.DATABASE_URL,
+  bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS
+}
+```
+## 9-9 How to implement delete data in another way
+- add isDeleted in the student.interface.ts file
+```js
+export type TStudent = {
+  id: string
+  password: string
+  name: TUserName
+  gender: 'male' | 'female' | 'other'
+  dateOfBirth?: string
+  email: string
+  contactNo: string
+  emergencyContactNo: string
+  bloodGroup?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'
+  presentAddress: string
+  permanentAddress: string
+  guardian: TGuardian
+  localGuardian: TLocalGuardian
+  profileImage?: string
+  isActive: 'active' | 'blocked',
+  isDeleted: boolean
+}
+```
+- add isDeleted in the student.zod.validation.ts file
+```js
+const studentValidationSchema = z.object({
+  isDeleted: z.boolean(),
+})
+export default studentValidationSchema
+```
+- add isDeleted in the student.model.ts
+```js
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: [true, 'ID is required'] },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  }
+})
+```
+- add delete route to the student.route.ts file
+```js
+import express from 'express'
+import { StudentControllers } from './student.controller'
+
+const router = express.Router()
+
+router.post('/create-student', StudentControllers.createStudent)
+router.get('/', StudentControllers.getAllStudents)
+router.get('/:studentId', StudentControllers.getSingleStudent)
+router.delete('/:studentId', StudentControllers.deleteStudent)
+
+export const StudentRoutes = router
+```
+- add service to the student.service.ts file
+```js
+import { TStudent } from './student.interface'
+import { Student } from './student.model'
+
+const deleteStudentFromDB = async (id: string) => {
+  const result = await Student.updateOne(
+    { id },
+    { isDeleted: true }
+  )
+  return result
+}
+
+export const StudentServices = {
+  createStudentIntoDB,
+  getAllStudentsFromDB,
+  getSingleStudentFromDB,
+  deleteStudentFromDB
+}
+```
+- add deleteStudent function to the student.controller.ts
+```js
+const deleteStudent = async (req: Request, res: Response) => {
+  try {
+    const { studentId } = req.params
+    const result = await StudentServices.deleteStudentFromDB(studentId)
+    res.status(200).json({
+      success: true,
+      message: 'students is deleted successfully',
+      data: result,
+    })
+  } catch (error:any) {
+    res.status(500).json({
+      success: false,
+      message: error?.message || 'student data is not created!',
+      error: error,
+    })
+  }
+}
+
+export const StudentControllers = {
+  createStudent,
+  getAllStudents,
+  getSingleStudent,
+  deleteStudent
+}
+```
+## 9-10 How to implement query middlewares
+- add query middlewares to the student.model.ts
+```js
+/*** query middleware ***/
+studentSchema.pre('find', function(next) {
+  this.find({ isDeleted: { $ne: true } })
+  next()
+})
+
+studentSchema.pre('findOne', function(next) {
+  this.find({ isDeleted: { $ne: true } })
+  next()
+})
+
+// [ {$match:{isDeleted: {$ne: true}}}, {$match:{id: '123456'}} ]
+
+studentSchema.pre('aggregate', function(next) {
+  this.pipeline().unshift({$match: {isDeleted: {$ne: true}}})
+  next()
+})
+
+
+studentSchema.statics.isUserExist = async function (id: string) {
+  const existingUser = await Student.findOne({ id })
+  return existingUser
+}
+
+export const Student = model<TStudent, StudentModel>('Student', studentSchema)
+```
+- modify the getSingleStudentFromDB so that deleted students not get retrieved when calling student by id 
+```js
+const getSingleStudentFromDB = async (id: string) => {
+  // const result = await Student.findOne({ id })
+  const result = await Student.aggregate([
+    { $match: { id: id }}
+  ])
+  return result
+}
+
+const deleteStudentFromDB = async (id: string) => {
+  const result = await Student.updateOne(
+    { id },
+    { isDeleted: true }
+  )
+  return result
+}
+
+export const StudentServices = {
+  createStudentIntoDB,
+  getAllStudentsFromDB,
+  getSingleStudentFromDB,
+  deleteStudentFromDB
+}
+```
+## 9-11 Mongoose Virtuals and Module Summary
+- mongoose virtuals
+  - we will take a field which is not exists in the database but we can derived that field from the existing field
+  - we can use this if suppose we don't need data to be stored in the database but we have to show that only in this case
+- add virtuals to the student.model.ts
+```js
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: [true, 'ID is required'] },
+},{
+  toJSON: {
+    virtuals: true
+  }
+})
+
+/*** mongoose virtual ***/ 
+studentSchema.virtual('fullName').get(function () {
+  return this.name.firstName + ' ' + this.name.middleName + ' ' + this.name.lastName
+})
+```
+- for updating student patch route add to the student.route.ts
+```js
+router.patch('/:studentId', StudentControllers.updateSingleStudent)
+```
+- student.controller.ts file update for updating a student
+```js
+const updateSingleStudent = async (req: Request, res: Response) => {
+  try {
+    const studentData = req.body
+    // Partial validation using zod
+    const zodParseData: any = studentValidationSchema.partial().parse(studentData);
+    const { studentId } = req.params
+    const result = await StudentServices.updateSingleStudentFromDB(studentId, zodParseData)
+    res.status(200).json({
+      success: true,
+      message: 'students is updated successfully',
+      data: result,
+    })
+  } catch (error:any) {
+    res.status(500).json({
+      success: false,
+      message: error?.message || 'student data is not created!',
+      error: error,
+    })
+  }
+}
+
+export const StudentControllers = {
+  createStudent,
+  getAllStudents,
+  getSingleStudent,
+  deleteStudent,
+  updateSingleStudent
+}
+```
+- student.service.ts file update for updating a student
+```js
+const updateSingleStudentFromDB = async (id: string, data:any) => {
+  const result = await Student.updateOne(
+    { id },
+    data
+  )
+  return result
+}
+
+export const StudentServices = {
+  createStudentIntoDB,
+  getAllStudentsFromDB,
+  getSingleStudentFromDB,
+  deleteStudentFromDB,
+  updateSingleStudentFromDB
+}
+```
+- updated the app.ts file
+```js
+import express, { Application, Request, Response } from 'express'
+import cors from 'cors'
+import { StudentRoutes } from './app/modules/student/student.route'
+
+const app: Application = express()
+
+// parsers
+app.use(express.json())
+app.use(cors())
+
+// application routes
+app.use('/api/v1/students', StudentRoutes)
+
+app.get('/', (req: Request, res: Response) => {
+  res.send('Hello World!')
+})
+
+export default app
+```
+## Deploy with vercel
+- download vercel cli first
+```js
+npm i -g vercel
+```
+- make a file in the root and add the configurations in the file
+```js
+// for making a file command
+touch vercel.json
+
+// configurations
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "dist/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "dist/server.js"
+    }
+  ]
+}
+```
+- login the vercel from CLI
+```js
+vercel login
+```
+- deploy the app now 
+```js
+// use this command to deploy the app
+vercel
+```
+- after changing in the application and again deploy to the vercel
+```js
+// commands
+npm run build
+vercel --prod
+```

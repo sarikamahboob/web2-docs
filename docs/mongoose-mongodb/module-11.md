@@ -1,0 +1,125 @@
+## 11-2 Requirement Analysis of PH University Management
+- Functional Requirements:
+  - Authenticaion
+     - Student
+      - Students can login and logout securely
+      - Students can update their password
+    - Faculty
+      - Faculty can login and logout securely
+      - Faculty can update their password
+    - Admin
+      - Admin can login and logout securely
+      - Admin can update their password
+- Profile Management:
+  - Student
+    - Students can manage and update their profile
+    - Students can update certain fields
+  - Faculty
+    - Faculty can manage and update their profile
+    - Faculty can update certain fields
+  - Admin
+    - Admin can manage and update their profile
+    - Admin can update certain fields
+- Academic Process:
+  - Student
+    - Students can enroll i offered courses for a specific semester
+    - Students can view their class schedules
+    - Students can see their grades
+    - Students can view notce board and events
+  - Faculty
+    - Faculty can manage students grades
+    - Faculty can access students personal and academic information
+  - Admin
+    - Admin can manage multiple processes:
+      - Semester
+      - Course
+      - Offered Course
+      - Section
+      - Room
+      - Building
+- User Management:
+  - Admin 
+    - Admin can manage multiple accounts
+    - Admin can block/unblock user
+    - Admin can change user password
+## 11-3 Modeling Data for PH University Management
+- Student 
+  - _id
+  - id (generated custom id)
+  - password
+  - name
+  - gender
+  - dateOfBirth
+  - email
+  - contactNo
+  - emergencyContactNo
+  - presentAddress
+  - permanentAddress
+  - guardian
+  - local guardian
+  - profile image
+  - status
+  - academicDepartment
+  - isDeleted
+  - createdAt
+  - updatedAt
+- Faculty
+  - _id
+  - id (generated custom id)
+  - password
+  - name
+  - gender
+  - dateOfBirth
+  - email
+  - contactNo
+  - emergencyContactNo
+  - presentAddress
+  - permanentAddress
+  - profile image
+  - status
+  - academicFaculty
+  - academicDepartment
+  - isDeleted
+  - createdAt
+  - updatedAt
+- Admin
+  - _id
+  - id (generated custom id)
+  - password
+  - name
+  - gender
+  - dateOfBirth
+  - email
+  - contactNo
+  - emergencyContactNo
+  - presentAddress
+  - permanentAddress
+  - profile image
+  - status
+  - managementDepartment
+  - isDeleted
+  - createdAt
+  - updatedAt
+## 11-4 Design Schema and ER Diagram
+- embedding and referencing 
+  - mongodb can embed upto 16mb but there is no limitations for referencing
+  - if any data is possibly grow in the future, we can reference that data 
+  - embedding pros and cons
+    - pros
+      - faster reading
+      - update all data with single query
+      - less expensive lookup
+    - cons
+      - slow writing
+      - update query can be complex
+      - limited size
+      - data duplicacy
+  - referencing pros and cons
+    - pros
+      - faster writing
+      - avoid data duplicacy
+      - scalabilty
+    - cons
+      - slow reading
+      - expensive lookup
+## 11-5 How to make ER Diagram for PH University Management

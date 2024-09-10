@@ -134,10 +134,19 @@
     - Admin can block/unblock user
     - Admin can change user password
 ## 11-3 Modeling Data for PH University Management
-- Student 
+- User
   - _id
   - id (generated custom id)
   - password
+  - needsPasswordChange
+  - role
+  - status
+  - isDeleted
+  - createdAt
+  - updatedAt
+- Student 
+  - _id
+  - id (generated custom id)
   - name
   - gender
   - dateOfBirth
@@ -147,9 +156,8 @@
   - presentAddress
   - permanentAddress
   - guardian
-  - local guardian
-  - profile image
-  - status
+  - localGuardian
+  - profileImage
   - academicDepartment
   - isDeleted
   - createdAt
@@ -157,7 +165,7 @@
 - Faculty
   - _id
   - id (generated custom id)
-  - password
+  - designation
   - name
   - gender
   - dateOfBirth
@@ -167,7 +175,6 @@
   - presentAddress
   - permanentAddress
   - profile image
-  - status
   - academicFaculty
   - academicDepartment
   - isDeleted
@@ -176,7 +183,7 @@
 - Admin
   - _id
   - id (generated custom id)
-  - password
+  - designation
   - name
   - gender
   - dateOfBirth
@@ -186,7 +193,6 @@
   - presentAddress
   - permanentAddress
   - profile image
-  - status
   - managementDepartment
   - isDeleted
   - createdAt
@@ -213,4 +219,106 @@
     - cons
       - slow reading
       - expensive lookup
+
 ## 11-5 How to make ER Diagram for PH University Management
+- [lucid chart er diagram](https://lucid.app/lucidchart/99f8d59f-9140-4723-9f5f-c569e7f51714/edit?view_items=1RG_ylWKUYa7&invitationId=inv_7937b89e-9335-497f-a5f6-c1170537caac)
+
+## 11-6 Create API Endpoints for PH University Management
+- user:
+  - users/create-student (POST)
+  - users/create-faculty (POST)
+  - users/create-admin (POST)
+- student:
+  - students/ (GET)
+  - students/:id (GET)
+  - students/:id (PATCH)
+  - students/:id (DELETE)
+  - students/my-profile (GET)
+- faculty:
+  - faculties/ (GET)
+  - faculties/:id (GET)
+  - faculties/:id (PATCH)
+  - faculties/:id (DELETE)
+  - faculties/my-profile (GET)
+- admin:
+  - admins/ (GET)
+  - admins/:id (GET)
+  - admins/:id (PATCH)
+  - admins/:id (DELETE)
+  - admins/my-profile (GET)
+- auth:
+  - auth/login (POST)
+  - auth/refresh-token (POST)
+  - auth/change-password (POST)
+  - auth/forget-password (POST)
+  - auth/reset-password (POST)
+
+## 11-7 Create user interface ,model and validation
+- user.interface.ts
+```js
+export type TUser = {
+  id: string
+  password: string
+  needsPasswordChange: boolean
+  role: 'admin' | 'student' | 'faculty'
+  status: 'in-progress' | 'blocked'
+  isDeleted: boolean
+}
+```
+- user.model.ts
+```js
+import { model, Schema } from "mongoose"
+import { TUser } from "./user.interface"
+
+const userSchema = new Schema<TUser>({
+  id: {
+    type: String,
+    unique: true,
+    required: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  needsPasswordChange: {
+    type: Boolean,
+    default: true,
+  },
+  role: {
+    type: String,
+    enum: ['admin', 'student', 'faculty'],
+  },
+  status: {
+    type: String,
+    enum: ['in-progress', 'blocked'],
+    default: 'in-progress',
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  }
+}, {
+  timestamps: true
+})
+
+export const UserModel = model<TUser>('User', userSchema)
+```
+- user.validation.ts
+```js
+import { z } from 'zod'
+
+const userSchemaValidation = z.object({
+  password: z
+    .string({
+      invalid_type_error: 'password must be string'
+    })
+    .max(20, { message: 'password can not be more than 20 characters' })
+    .optional(),
+})
+// export default userSchemaValidation
+export const UserValidation = {
+  userSchemaValidation,
+}
+```
+## 11-8 Refactor user validation , student route ,controller and service
+## 11-9 Refactor user controller and service

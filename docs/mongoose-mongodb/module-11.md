@@ -322,3 +322,39 @@ export const UserValidation = {
 ```
 ## 11-8 Refactor user validation , student route ,controller and service
 ## 11-9 Refactor user controller and service
+- add env variable
+```js
+DEFAULT_PASS=phuniversity!@#
+```
+- update the config file
+```js
+import dotenv from 'dotenv'
+import path from 'path'
+
+dotenv.config({ path: path.join(process.cwd(), '.env') })
+
+export default {
+  port: process.env.PORT,
+  database_url: process.env.DATABASE_URL,
+  bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
+  default_pass: process.env.DEFAULT_PASS,
+}
+```
+- user.interface.ts file update
+```js
+export type TUser = {
+  id: string
+  password: string
+  needsPasswordChange: boolean
+  role: 'admin' | 'student' | 'faculty'
+  status: 'in-progress' | 'blocked'
+  isDeleted: boolean
+}
+
+export type NewUser = {
+  role: string
+  password: string
+  id: string
+}
+```
+## 11-10 Create User as Student

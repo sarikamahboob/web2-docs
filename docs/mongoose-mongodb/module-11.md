@@ -358,3 +358,463 @@ export type NewUser = {
 }
 ```
 ## 11-10 Create User as Student
+- app.ts
+```js
+// application routes
+app.use('/api/v1/students', StudentRoutes)
+app.use('/api/v1/users', UserRoutes)
+```
+- user.route.ts
+```js
+import express from 'express'
+import { UserControllers } from './user.controller'
+
+const router = express.Router()
+router.post('/create-student', UserControllers.createStudent)
+export const UserRoutes = router
+```
+- student.interface.ts
+```js
+import { Model, Types } from "mongoose"
+export type TStudent = {
+  id: string
+  user: Types.ObjectId
+  password: string
+  name: TUserName
+  gender: 'male' | 'female' | 'other'
+  dateOfBirth?: string
+  email: string
+  contactNo: string
+  emergencyContactNo: string
+  bloodGroup?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'
+  presentAddress: string
+  permanentAddress: string
+  guardian: TGuardian
+  localGuardian: TLocalGuardian
+  profileImage?: string
+  isDeleted: boolean
+}
+```
+- student.model.ts
+```js
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: [true, 'ID is required'] },
+  user: {
+    type: Schema.Types.ObjectId,
+    required: [true, 'User ID is required'],
+    unique: true,
+    ref: 'User'
+  },
+  password: { type: String, required: [true, 'password is required'], maxlength: [20, 'password cannot be more than 20 characters'] },
+  name: { type: userNameSchema, required: true },
+  gender: {
+    type: String,
+    enum: {
+      values: ['male', 'female', 'other'],
+      message:
+        "{VALUE} is not valid. The gender field can only be of the following: 'male', 'female', 'other'",
+    },
+    required: true,
+  },
+  dateOfBirth: { type: String },
+  email: {
+    type: String,
+    required: true,
+    validate: {
+      validator: (value: string) => validator.isEmail(value),
+      message: '{VALUE} is not a valid email',
+    },
+  },
+  contactNo: { type: String, required: true },
+  emergencyContactNo: { type: String, required: true },
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'AB+', 'AB-', 'B+', 'B+', 'O+', 'O-'],
+  },
+  presentAddress: { type: String, required: true },
+  permanentAddress: { type: String, required: true },
+  guardian: { type: guardianSchema, required: true },
+  localGuardian: { type: localGuardianSchema, required: true },
+  profileImage: { type: String },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+},{
+  toJSON: {
+    virtuals: true
+  }
+})
+```
+- user.controller.ts
+```js
+import { Request, Response } from "express"
+import {  UserServices } from "./user.service"
+const createStudent = async (req: Request, res: Response) => {
+  try {
+    const {password, student: studentData } = req.body
+    // validation using zod
+    // const zodParseData = studentValidationSchema.parse(studentData)
+
+    const result = await UserServices.createStudentIntoDB(password,studentData )
+    res.status(200).json({
+      success: true,
+      message: 'student is created successfully',
+      data: result,
+    })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error?.message || 'student data is not created!',
+      error: error,
+    })
+  }
+}
+export const UserControllers = {
+  createStudent
+}
+```
+- user.service.ts
+```js
+import config from "../../config"
+import { TStudent } from "../student/student.interface"
+import { Student } from "../student/student.model"
+import { TUser } from "./user.interface"
+import { UserModel } from "./user.model"
+const createStudentIntoDB = async (password: string, studentData: TStudent) => {
+  // create a user object
+  const userData:Partial<TUser> = {}
+  // if password is not given, use default password
+  userData.password = password || config.default_pass as string
+  // set student role
+  userData.role = 'student';
+  // set manually generated id
+  userData.id = '2030100001'
+  // create a user
+  const newUser = await UserModel.create(userData)
+  // create a student
+  if(Object.keys(newUser).length) {
+    // set id, _id as user
+    studentData.id = newUser.id //embedding id 
+    studentData.user = newUser._id // reference _id 
+
+    const newStudent = await Student.create(studentData)
+    return newStudent
+  }
+}
+export const UserServices = {
+  createStudentIntoDB
+}
+```
+## 11-11 Fix bugs and setup basic global error handler
+- app.ts globalErrorHandler added
+```js
+// application routes
+app.use('/api/v1/students', StudentRoutes)
+app.use('/api/v1/users', UserRoutes)
+
+app.use(globalErrorHandler)
+
+app.get('/', (req: Request, res: Response) => {
+  res.send('Welcome to the project')
+})
+
+export default app
+```
+- in middleware globalErrorHandler file added
+```js
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextFunction, Request, Response } from "express"
+
+const globalErrorHandler = (err: any, req:Request, res: Response, next: NextFunction) => {
+  const statusCode:any = 500
+  const message = 'something went wrong!'
+  return res.status(statusCode).json({ 
+    success: false,
+    message,
+    error: err
+  })
+}
+
+export default globalErrorHandler
+```
+- user.model.ts
+```js
+import { model, Schema } from "mongoose"
+import { TUser } from "./user.interface"
+import bcrypt from "bcrypt";
+import config from '../../config';
+
+const userSchema = new Schema<TUser>({
+  id: {
+    type: String,
+    unique: true,
+    required: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  needsPasswordChange: {
+    type: Boolean,
+    default: true,
+  },
+  role: {
+    type: String,
+    enum: ['admin', 'student', 'faculty'],
+  },
+  status: {
+    type: String,
+    enum: ['in-progress', 'blocked'],
+    default: 'in-progress',
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  }
+}, {
+  timestamps: true
+})
+
+userSchema.pre('save', async function(next) {
+  // hashing password and save into database
+  const user = this
+  user.password = await bcrypt.hash(user.password, Number(config.bcrypt_salt_rounds))
+  next()
+})
+
+// set empty string after saving password
+userSchema.post('save', function(doc,next) {
+  doc.password = ''
+  next()
+})
+
+export const UserModel = model<TUser>('User', userSchema)
+
+```
+- student.model.ts 
+```js
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+import { Schema, model } from 'mongoose'
+import {
+  StudentModel,
+  TGuardian,
+  TLocalGuardian,
+  TStudent,
+  TUserName,
+} from './student.interface'
+import validator from 'validator'
+
+const userNameSchema = new Schema<TUserName>({
+  firstName: {
+    type: String,
+    required: [true, 'first name is required'],
+    trim: true,
+    maxlength: [20, 'first name can not be more than 20'],
+    validate: {
+      validator: function (value: string) {
+        const firstNameStr = value.charAt(0).toUpperCase() + value.slice(1)
+        return firstNameStr === value
+      },
+      message: `{VALUE} is not in capitalize format`,
+    },
+  },
+  middleName: { type: String },
+  lastName: {
+    type: String,
+    required: [true, 'last name is required'],
+    validate: {
+      validator: (value: string) => validator.isAlpha(value),
+      message: `{VALUE} is not valid`,
+    },
+  },
+})
+
+const guardianSchema = new Schema<TGuardian>({
+  fatherName: { type: String, required: true },
+  fatherOccupation: { type: String, required: true },
+  fatherContactNo: { type: String, required: true },
+  motherName: { type: String, required: true },
+  motherOccupation: { type: String, required: true },
+  motherContactNo: { type: String, required: true },
+})
+
+const localGuardianSchema = new Schema<TLocalGuardian>({
+  name: { type: String, required: true },
+  occupation: { type: String, required: true },
+  contactNo: { type: String, required: true },
+  address: { type: String, required: true },
+})
+
+/***creating a custom static method ***/
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: [true, 'ID is required'] },
+  user: {
+    type: Schema.Types.ObjectId,
+    required: [true, 'User ID is required'],
+    unique: true,
+    ref: 'User'
+  },
+  name: { type: userNameSchema, required: true },
+  gender: {
+    type: String,
+    enum: {
+      values: ['male', 'female', 'other'],
+      message:
+        "{VALUE} is not valid. The gender field can only be of the following: 'male', 'female', 'other'",
+    },
+    required: true,
+  },
+  dateOfBirth: { type: String },
+  email: {
+    type: String,
+    required: true,
+    validate: {
+      validator: (value: string) => validator.isEmail(value),
+      message: '{VALUE} is not a valid email',
+    },
+  },
+  contactNo: { type: String, required: true },
+  emergencyContactNo: { type: String, required: true },
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'AB+', 'AB-', 'B+', 'B+', 'O+', 'O-'],
+  },
+  presentAddress: { type: String, required: true },
+  permanentAddress: { type: String, required: true },
+  guardian: { type: guardianSchema, required: true },
+  localGuardian: { type: localGuardianSchema, required: true },
+  profileImage: { type: String },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+},{
+  toJSON: {
+    virtuals: true
+  }
+})
+
+/*** mongoose virtual ***/ 
+studentSchema.virtual('fullName').get(function () {
+  return this.name.firstName + ' ' + this.name.middleName + ' ' + this.name.lastName
+})
+
+/*** query middleware ***/
+studentSchema.pre('find', function(next) {
+  this.find({ isDeleted: { $ne: true } })
+  next()
+})
+studentSchema.pre('findOne', function(next) {
+  this.find({ isDeleted: { $ne: true } })
+  next()
+})
+
+studentSchema.pre('aggregate', function(next) {
+  this.pipeline().unshift({$match: {isDeleted: {$ne: true}}})
+  next()
+})
+
+studentSchema.statics.isUserExist = async function (id: string) {
+  const existingUser = await Student.findOne({ id })
+  return existingUser
+}
+
+export const Student = model<TStudent, StudentModel>('Student', studentSchema)
+```
+- user.controller.ts
+```js
+import { NextFunction, Request, Response } from "express"
+import {  UserServices } from "./user.service"
+const createStudent = async (req: Request, res: Response,next: NextFunction) => {
+  try {
+    const {password, student: studentData } = req.body
+    const result = await UserServices.createStudentIntoDB(password,studentData )
+    res.status(200).json({
+      success: true,
+      message: 'student is created successfully',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const UserControllers = {
+  createStudent
+}
+```
+- student.controller.ts
+```js
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextFunction, Request, Response } from 'express'
+import { StudentServices } from './student.service'
+import studentValidationSchema from './student.zod.validation'
+
+const getAllStudents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await StudentServices.getAllStudentsFromDB()
+    res.status(200).json({
+      success: true,
+      message: 'students are fetched successfully',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const getSingleStudent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { studentId } = req.params
+    const result = await StudentServices.getSingleStudentFromDB(studentId)
+    res.status(200).json({
+      success: true,
+      message: 'students is retrieved successfully',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const deleteStudent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { studentId } = req.params
+    const result = await StudentServices.deleteStudentFromDB(studentId)
+    res.status(200).json({
+      success: true,
+      message: 'students is deleted successfully',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const updateSingleStudent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const studentData = req.body
+    // Partial validation using zod
+    const zodParseData: any = studentValidationSchema.partial().parse(studentData);
+    const { studentId } = req.params
+    const result = await StudentServices.updateSingleStudentFromDB(studentId, zodParseData)
+    res.status(200).json({
+      success: true,
+      message: 'students is updated successfully',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const StudentControllers = {
+  getAllStudents,
+  getSingleStudent,
+  deleteStudent,
+  updateSingleStudent
+}
+```
+## 11-12 Create not found route & sendResponse utility

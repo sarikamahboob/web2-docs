@@ -818,3 +818,124 @@ export const StudentControllers = {
 }
 ```
 ## 11-12 Create not found route & sendResponse utility
+- notFound.ts file made in the utils directory
+```js
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { NextFunction, Request, Response } from "express";
+import httpStatus from "http-status";
+
+const notFound = (req: Request, res: Response, next: NextFunction) => {
+  return res.status(httpStatus.NOT_FOUND).json({
+    success: false,
+    message: 'API Not Found',
+    error: '',
+  })
+}
+export default notFound
+```
+- app.ts
+```js
+app.use(globalErrorHandler)
+app.use(notFound)
+
+app.get('/', (req: Request, res: Response) => {
+  res.send('Welcome to the project')
+})
+
+export default app
+```
+- for response made a global response file
+```js
+import { Response } from "express";
+
+type TResponse<T> = {
+  statusCode: number,
+  success: boolean,
+  message?: string,
+  data: T,
+}
+
+const sendResponse = <T>(res: Response, data: TResponse<T>) => {
+  res.status(data.statusCode).json({
+    success: data.success,
+    message: data.message || '',
+    data: data.data,
+  })
+}
+
+export default sendResponse;
+```
+- user.controller.ts
+```js
+const createStudent = async (req: Request, res: Response,next: NextFunction) => {
+  try {
+    const {password, student: studentData } = req.body
+    const result = await UserServices.createStudentIntoDB(password,studentData )
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'student is created successfully',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const UserControllers = {
+  createStudent
+}
+```
+## 11-13 Create index route and module summary
+- app.ts updated
+```js
+/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+import express, { Application, NextFunction, Request, Response } from 'express'
+import cors from 'cors'
+import { StudentRoutes } from './app/modules/student/student.route'
+import { UserRoutes } from './app/modules/user/user.route'
+import globalErrorHandler from './app/middleware/globalErrorHandler'
+import notFound from './app/middleware/notFound'
+import router from './app/routes'
+
+const app: Application = express()
+
+// parsers
+app.use(express.json())
+app.use(cors())
+
+// application routes
+app.use('/api/v1', router)
+
+app.get('/', (req: Request, res: Response) => {
+  res.send('Welcome to the project')
+})
+
+app.use(globalErrorHandler)
+app.use(notFound)
+
+export default app
+```
+- in app folder, routes folder made with a index file and all the routes are sorted there
+```js
+import {Router} from "express"
+import { StudentRoutes } from "../modules/student/student.route";
+import { UserRoutes } from "../modules/user/user.route";
+
+const router = Router()
+
+const moduleRoutes = [
+  {
+    path: '/users',
+    route: UserRoutes,
+  },
+  {
+    path: '/students',
+    route: StudentRoutes,
+  },
+]
+
+moduleRoutes.forEach((route) => router.use(route.path, route.route))
+export default router
+```

@@ -320,11 +320,8 @@ const createStudentValidationSchema = z.object({
         }),
       }),
       dateOfBirth: z
-        .string()
+        .date()
         .optional()
-        .refine((value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), {
-          message: 'Invalid date of birth format',
-        }),
       email: z
         .string()
         .email({ message: 'Invalid email format' })
@@ -357,3 +354,247 @@ export const StudentValidations = {
   createStudentValidationSchema
 }
 ```
+## 12-4 Create Academic Semester Interface
+- create id like this 
+  - year-semester_code-4-digit-code
+  - semester code 
+    - 01- autumn
+    - 02-summer
+    - 03-fall
+- academicSemester.interface.ts file
+```js
+export type TMonths = 'January' | 'February' | 'March' | 'April' | 'May' | 'June' | 'July' | 'August' | 'September' | 'October' | 'November' | 'December'; 
+
+export type TAcademicSemesterName =  'Autumn' | 'Summer' | 'Fall'
+
+export type TAcademicSemesterCode =  '01' | '02' | '03'
+
+export type TAcademicSemester = {
+  name: TAcademicSemesterName,
+  code: TAcademicSemesterCode,
+  year: string,
+  startMonth: TMonths
+  endMonth: TMonths
+}
+```
+## 12-5 Create Academic Semester Model
+- academicSemester.constant.ts
+```js
+import { TAcademicSemesterCode, TAcademicSemesterName, TMonths } from "./academicSemester.interface";
+
+export const Months:TMonths[] = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+
+export const AcademicSemesterName:TAcademicSemesterName[] = [ 'Autumn' , 'Summer' ,'Fall' ]
+
+export const AcademicSemesterCode:TAcademicSemesterCode[] = [ '01' , '02' , '03' ] 
+```
+- academicSemester.model.ts file
+```js
+import { model, Schema } from "mongoose";
+import { TAcademicSemester} from "./academicSemester.interface";
+import { AcademicSemesterCode, AcademicSemesterName, Months } from "./academicSemester.constant";
+
+const academicSemesterSchema = new Schema<TAcademicSemester>({
+  name: {
+    type: String,
+    required: true,
+    enum: AcademicSemesterName
+  },
+  year: {
+    type: String,
+    required: true,
+  },
+  code: {
+    type: String,
+    required: true,
+    enum: AcademicSemesterCode
+  },
+  startMonth: {
+    type: String,
+    enum: Months,
+    required: true,
+  },
+  endMonth: {
+    type: String,
+    enum: Months,
+    required: true,
+  },
+}, {
+  timestamps: true
+})
+
+export const AcademicSemesterModel = model<TAcademicSemester>('AcademicSemester', academicSemesterSchema)
+```
+## 12-6 Create Academic Semester Validation , route , controller
+- in the routes directory file, add academicSemester route
+```js
+import {Router} from "express"
+import { StudentRoutes } from "../modules/student/student.route";
+import { UserRoutes } from "../modules/user/user.route";
+import { AcademicSemesterRoutes } from "../modules/academicSemester/academicSemester.route";
+
+const router = Router()
+
+const moduleRoutes = [
+  {
+    path: '/users',
+    route: UserRoutes,
+  },
+  {
+    path: '/students',
+    route: StudentRoutes,
+  },
+  {
+    path: '/academic-semesters',
+    route: AcademicSemesterRoutes
+  }
+]
+
+moduleRoutes.forEach((route) => router.use(route.path, route.route))
+
+export default router
+```
+- academicSemester.validation.ts file
+```js
+import { z } from "zod";
+import { AcademicSemesterCode, AcademicSemesterName, Months } from "./academicSemester.constant";
+
+const createAcademicSemesterValidationSchema = z.object({
+  body: z.object({
+    name: z.enum([...AcademicSemesterName] as [string, ...string[]]),
+    year: z.string(),
+    code: z.enum([...AcademicSemesterCode] as [string, ...string[]]),
+    startMonth: z.enum([...Months] as [string, ...string[]]),
+    endMonth: z.enum([...Months] as [string, ...string[]])
+  })
+})
+
+export const AcademicSemesterValidations = {
+  createAcademicSemesterValidationSchema
+}
+```
+- academicSemester.route.ts file
+```js
+import express from "express"
+import { AcademicSemesterControllers } from "./academicSemester.controller";
+import validateRequest from "../../middleware/validateRequest";
+import { AcademicSemesterValidations } from "./academicSemester.validation";
+
+const router = express.Router()
+
+router.post('/create-academic-semester', validateRequest(AcademicSemesterValidations.createAcademicSemesterValidationSchema) ,AcademicSemesterControllers.createAcademicSemester )
+
+export const AcademicSemesterRoutes = router;
+```
+- academicSemester.controller.ts file
+```js
+import httpStatus from "http-status"
+import catchAsync from "../../utils/catchAsync"
+import sendResponse from "../../utils/sendResponse"
+import { AcademicSemesterServices } from "./academicSemester.service"
+
+const createAcademicSemester = catchAsync(async(req,res)=> {
+  const result = await AcademicSemesterServices.createAcademicSemesterIntoDB(req.body)
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'academic semester is created successfully',
+    data: result
+  })
+})
+
+export const AcademicSemesterControllers = {
+  createAcademicSemester
+}
+```
+## 12-7 Create Academic Semester service
+```js
+import { TAcademicSemester } from "./academicSemester.interface";
+import { AcademicSemesterModel } from "./academicSemester.model";
+
+const createAcademicSemesterIntoDB = async (payload:TAcademicSemester) => {
+  const result = await AcademicSemesterModel.create(payload);
+  return result;
+}
+
+export const AcademicSemesterServices = {
+  createAcademicSemesterIntoDB
+}
+```
+## 12-8 Handle academic semester logical validation
+- academicSemester.interface.ts file 
+```js
+export type TAcademicSemesterNameCodeMapper = {
+  [key: string]: string
+}
+```
+- academicSemester.constant.ts file
+```js
+export const academicSemesterNameCodeMapper:TAcademicSemesterNameCodeMapper = {
+  Autumn: '01',
+  Summer: '02',
+  Fall: '03',
+}
+```
+- academicSemester.model.ts file pre hook added
+```js
+academicSemesterSchema.pre('save', async function(next){
+  const isSemesterExists = await AcademicSemesterModel.findOne({
+    name: this.name,
+    year: this.year,
+  })
+  if(isSemesterExists) {
+    throw new Error(`Semester is already exists!`)
+  }
+  next()
+})
+
+export const AcademicSemesterModel = model<TAcademicSemester>('AcademicSemester', academicSemesterSchema)
+```
+- academicSemester.service.ts
+```js
+import { academicSemesterNameCodeMapper } from "./academicSemester.constant";
+import { TAcademicSemester} from "./academicSemester.interface";
+import { AcademicSemesterModel } from "./academicSemester.model";
+
+const createAcademicSemesterIntoDB = async (payload:TAcademicSemester) => {
+  
+  if(academicSemesterNameCodeMapper[payload.name] !== payload.code) {
+    throw new Error('Invalid semester code!')
+  }
+  const result = await AcademicSemesterModel.create(payload);
+  return result;
+}
+
+export const AcademicSemesterServices = {
+  createAcademicSemesterIntoDB
+}
+```
+- globalErrorHandler.ts file modified
+```js
+const globalErrorHandler = (err: any, req:Request, res: Response, next: NextFunction) => {
+  const statusCode:any = 500
+  const message = 'something went wrong!'
+  return res.status(statusCode).json({ 
+    success: false,
+    message,
+    error: err.message || err
+  })
+}
+export default globalErrorHandler
+```
+## 12-9 Add admission semester into student interface , model and validation
+- 

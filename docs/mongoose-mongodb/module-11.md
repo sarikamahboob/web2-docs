@@ -197,6 +197,12 @@
   - isDeleted
   - createdAt
   - updatedAt
+- Academic Semester
+  - name
+  - year
+  - code 
+  - startMonth
+  - endMonth
 ## 11-4 Design Schema and ER Diagram
 - embedding and referencing 
   - mongodb can embed upto 16mb but there is no limitations for referencing
@@ -382,7 +388,7 @@ export type TStudent = {
   password: string
   name: TUserName
   gender: 'male' | 'female' | 'other'
-  dateOfBirth?: string
+  dateOfBirth?: Date
   email: string
   contactNo: string
   emergencyContactNo: string
@@ -416,7 +422,7 @@ const studentSchema = new Schema<TStudent, StudentModel>({
     },
     required: true,
   },
-  dateOfBirth: { type: String },
+  dateOfBirth: { type: Date },
   email: {
     type: String,
     required: true,
@@ -666,7 +672,7 @@ const studentSchema = new Schema<TStudent, StudentModel>({
     },
     required: true,
   },
-  dateOfBirth: { type: String },
+  dateOfBirth: { type: Date },
   email: {
     type: String,
     required: true,

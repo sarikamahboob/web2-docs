@@ -320,7 +320,7 @@ const createStudentValidationSchema = z.object({
         }),
       }),
       dateOfBirth: z
-        .date()
+        .string()
         .optional()
       email: z
         .string()
@@ -597,4 +597,423 @@ const globalErrorHandler = (err: any, req:Request, res: Response, next: NextFunc
 export default globalErrorHandler
 ```
 ## 12-9 Add admission semester into student interface , model and validation
-- 
+- academicSemester.validation.ts updated
+```js
+import { z } from "zod";
+import { AcademicSemesterCode, AcademicSemesterName, Months } from "./academicSemester.constant";
+
+const createAcademicSemesterValidationSchema = z.object({
+  body: z.object({
+    name: z.enum([...AcademicSemesterName] as [string, ...string[]]),
+    year: z.string(),
+    code: z.enum([...AcademicSemesterCode] as [string, ...string[]]),
+    startMonth: z.enum([...Months] as [string, ...string[]]),
+    endMonth: z.enum([...Months] as [string, ...string[]])
+  })
+})
+
+const updateAcademicSemesterValidationSchema = z.object({
+  body: z.object({
+    name: z.enum([...AcademicSemesterName] as [string, ...string[]]).optional(),
+    year: z.string().optional(),
+    code: z.enum([...AcademicSemesterCode] as [string, ...string[]]).optional(),
+    startMonth: z.enum([...Months] as [string, ...string[]]).optional(),
+    endMonth: z.enum([...Months] as [string, ...string[]]).optional(),
+  }),
+})
+
+export const AcademicSemesterValidations = {
+  createAcademicSemesterValidationSchema,
+  updateAcademicSemesterValidationSchema,
+}
+```
+- academicSemester.route.ts file updated
+```js
+import express from "express"
+import { AcademicSemesterControllers } from "./academicSemester.controller";
+import validateRequest from "../../middleware/validateRequest";
+import { AcademicSemesterValidations } from "./academicSemester.validation";
+
+const router = express.Router()
+
+router.post(
+  '/create-academic-semester',
+  validateRequest(AcademicSemesterValidations.createAcademicSemesterValidationSchema), AcademicSemesterControllers.createAcademicSemester
+)
+
+router.get(
+  '/:semesterId',
+  AcademicSemesterControllers.getSingleAcademicSemester,
+)
+
+router.patch(
+  '/:semesterId',
+  validateRequest(
+    AcademicSemesterValidations.updateAcademicSemesterValidationSchema,
+  ),
+  AcademicSemesterControllers.updateAcademicSemester,
+)
+
+router.get('/', AcademicSemesterControllers.getAllAcademicSemesters)
+
+export const AcademicSemesterRoutes = router;
+```
+- academicSemester.controller.ts file updated
+```js
+import httpStatus from "http-status"
+import catchAsync from "../../utils/catchAsync"
+import sendResponse from "../../utils/sendResponse"
+import { AcademicSemesterServices } from "./academicSemester.service"
+
+const createAcademicSemester = catchAsync(async(req,res)=> {
+  const result = await AcademicSemesterServices.createAcademicSemesterIntoDB(req.body)
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'academic semester is created successfully',
+    data: result
+  })
+})
+
+const getAllAcademicSemesters = catchAsync(async (req, res) => {
+  const result = await AcademicSemesterServices.getAllAcademicSemestersFromDB()
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'academic semester is retrieved successfully',
+    data: result,
+  })
+})
+
+const getSingleAcademicSemester = catchAsync(async (req, res) => {
+  const { semesterId } = req.params
+  const result = await AcademicSemesterServices.getSingleAcademicSemesterFromDB(semesterId)
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'academic semester is retrieved successfully',
+    data: result,
+  })
+})
+ 
+const updateAcademicSemester = catchAsync(async (req, res) => {
+  const { semesterId } = req.params
+  const result = await AcademicSemesterServices.updateAcademicSemesterIntoDB(
+    semesterId,
+    req.body,
+  )
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Academic semester is retrieved succesfully',
+    data: result,
+  })
+})
+
+export const AcademicSemesterControllers = {
+  createAcademicSemester,
+  getAllAcademicSemesters,
+  getSingleAcademicSemester,
+  updateAcademicSemester,
+}
+```
+- academiSemester.service.ts file updated
+```js
+import { academicSemesterNameCodeMapper } from "./academicSemester.constant";
+import { TAcademicSemester} from "./academicSemester.interface";
+import { AcademicSemesterModel } from "./academicSemester.model";
+
+const createAcademicSemesterIntoDB = async (payload:TAcademicSemester) => {
+  if(academicSemesterNameCodeMapper[payload.name] !== payload.code) {
+    throw new Error('Invalid semester code!')
+  }
+  const result = await AcademicSemesterModel.create(payload);
+  return result;
+}
+
+const getAllAcademicSemestersFromDB = async () => {
+  const result = await AcademicSemesterModel.find()
+  return result
+}
+
+const getSingleAcademicSemesterFromDB = async (semesterId: string) => {
+  const result = await AcademicSemesterModel.findById(semesterId)
+  return result
+}
+
+const updateAcademicSemesterIntoDB = async (
+  semesterId: string,
+  payload: Partial<TAcademicSemester>
+) => {
+  const semesterCode: TAcademicSemester | null =
+    await AcademicSemesterModel.findById(semesterId)
+  // if payload name and code both are wrong
+  if (
+    payload.name &&
+    payload.code &&
+    academicSemesterNameCodeMapper[payload.name] !== payload.code
+  ) {
+    throw new Error('Invalid Semester Name or Code')
+  }
+  // if payload name is wrong
+  if (
+    payload.name &&
+    !payload.code &&
+    academicSemesterNameCodeMapper[payload.name] !== semesterCode?.code
+  ) {
+    throw new Error('Invalid Semester Name')
+  }
+  // if payload code is wrong
+  const semesterNameByCode = Object.keys(academicSemesterNameCodeMapper).find(
+    (key) =>
+      academicSemesterNameCodeMapper[
+        key as keyof typeof academicSemesterNameCodeMapper
+      ] === payload.code,
+  )
+  if (
+    !payload.name &&
+    payload.code &&
+    semesterNameByCode !== semesterCode?.name
+  ) {
+    throw new Error('Invalid Semester Code')
+  }
+  const result = await AcademicSemesterModel.findOneAndUpdate(
+    { _id: semesterId },
+    payload,
+    {
+      new: true,
+    },
+  )
+  return result
+}
+
+export const AcademicSemesterServices = {
+  createAcademicSemesterIntoDB,
+  getAllAcademicSemestersFromDB,
+  getSingleAcademicSemesterFromDB,
+  updateAcademicSemesterIntoDB,
+}
+```
+- student.interface.ts file updated with the admissionSemester
+```js
+export type TStudent = {
+  id: string
+  user: Types.ObjectId
+  password: string
+  name: TUserName
+  gender: 'male' | 'female' | 'other'
+  dateOfBirth?: string
+  email: string
+  contactNo: string
+  emergencyContactNo: string
+  bloodGroup?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'
+  presentAddress: string
+  permanentAddress: string
+  guardian: TGuardian
+  localGuardian: TLocalGuardian
+  profileImage?: string
+  admissionSemester: Types.ObjectId
+  isDeleted: boolean
+}
+```
+- student.zod.validation.ts file updated with the admissionSemester
+```js
+const createStudentValidationSchema = z.object({
+  body: z.object({
+    password: z
+      .string()
+      .min(1, { message: 'Password is required' })
+      .max(20, { message: 'Password cannot be more than 20 characters' }),
+    student: z.object({
+      name: userNameValidationSchema,
+      gender: z.enum(['male', 'female', 'other'], {
+        errorMap: () => ({
+          message: "The gender field can only be 'male', 'female', or 'other'",
+        }),
+      }),
+      dateOfBirth: z.string().optional(),
+      email: z
+        .string()
+        .email({ message: 'Invalid email format' })
+        .min(1, { message: 'Email is required' }),
+      contactNo: z
+        .string()
+        .min(10, { message: 'Contact number must have at least 10 digits' }),
+      emergencyContactNo: z.string().min(10, {
+        message: 'Emergency contact number must have at least 10 digits',
+      }),
+      bloodGroup: z.enum(['A+', 'A-', 'AB+', 'AB-', 'B+', 'O+', 'O-'], {
+        errorMap: () => ({
+          message:
+            "Invalid blood group. It must be one of 'A+', 'A-', 'AB+', 'AB-', 'B+', 'O+', 'O-'",
+        }),
+      }),
+      presentAddress: z
+        .string()
+        .min(1, { message: 'Present address is required' }),
+      permanentAddress: z
+        .string()
+        .min(1, { message: 'Permanent address is required' }),
+      guardian: guardianValidationSchema,
+      localGuardian: localGuardianValidationSchema,
+      profileImage: z.string().optional(),
+      admissionSemester: z.string(),
+      isDeleted: z.boolean(),
+    }),
+  }),
+})
+```
+- student.model.ts file updated with admissionSemester 
+```js
+const studentSchema = new Schema<TStudent, StudentModel>({
+  id: { type: String, unique: true, required: [true, 'ID is required'] },
+  user: {
+    type: Schema.Types.ObjectId,
+    required: [true, 'User ID is required'],
+    unique: true,
+    ref: 'User'
+  },
+  name: { type: userNameSchema, required: true },
+  gender: {
+    type: String,
+    enum: {
+      values: ['male', 'female', 'other'],
+      message:
+        "{VALUE} is not valid. The gender field can only be of the following: 'male', 'female', 'other'",
+    },
+    required: true,
+  },
+  dateOfBirth: { type: String },
+  email: {
+    type: String,
+    required: true,
+    validate: {
+      validator: (value: string) => validator.isEmail(value),
+      message: '{VALUE} is not a valid email',
+    },
+  },
+  contactNo: { type: String, required: true },
+  emergencyContactNo: { type: String, required: true },
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'AB+', 'AB-', 'B+', 'B+', 'O+', 'O-'],
+  },
+  presentAddress: { type: String, required: true },
+  permanentAddress: { type: String, required: true },
+  guardian: { type: guardianSchema, required: true },
+  localGuardian: { type: localGuardianSchema, required: true },
+  profileImage: { type: String },
+  admissionSemester: {
+    type: Schema.Types.ObjectId,
+    ref: 'AcademicSemester'
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+},{
+  toJSON: {
+    virtuals: true
+  }
+})
+``` 
+## 12-10 Implement generateStudentId() utility
+- user.utils.ts file added to the user directory
+```js
+import { TAcademicSemester } from "../academicSemester/academicSemester.interface";
+export const generateStudentId = (payload: TAcademicSemester) => {
+  // first time will be 0000
+  const currentId = (0).toString()
+  let incrementId = (Number(currentId) + 1).toString().padStart(4, '0')
+  incrementId = `${payload.year}${payload.code}${incrementId}`
+  return incrementId;
+}
+```
+- user.service.ts file updated
+```js
+const createStudentIntoDB = async (password: string, payload: TStudent) => {
+  // create a user object
+  const userData:Partial<TUser> = {}
+  // if password is not given, use default password
+  userData.password = password || config.default_pass as string
+  // set student role
+  userData.role = 'student';
+  // find academic semester info 
+  const admissionSemester:TAcademicSemester | null = await AcademicSemesterModel.findById(payload.admissionSemester)
+  // set manually generated id
+  userData.id = generateStudentId(admissionSemester!) 
+  // create a user
+  const newUser = await UserModel.create(userData)
+  // create a student
+  if(Object.keys(newUser).length) {
+    // set id, _id as user
+    payload.id = newUser.id //embedding id 
+    payload.user = newUser._id // reference _id 
+
+    const newStudent = await Student.create(payload)
+    return newStudent
+  }
+}
+
+export const UserServices = {
+  createStudentIntoDB
+}
+```
+## 12-11 Complete generateStudent() utility
+- user.utils.ts file updated
+```js
+/* eslint-disable no-undefined */
+import { TAcademicSemester } from "../academicSemester/academicSemester.interface";
+import { UserModel } from "./user.model";
+
+const findLastStudentId = async () => {
+  const lastStudent = await UserModel.findOne({
+    role: 'student'
+  }, {
+    id: 1,
+    _id: 0
+  }).sort({
+    createdAt: -1
+  }).lean()
+  return lastStudent?.id ? lastStudent.id.substring(6) : undefined;
+}
+
+export const generateStudentId = async (payload: TAcademicSemester) => {
+  // first time will be 0000
+  const currentId = await findLastStudentId() || (0).toString()
+  let incrementId = (Number(currentId) + 1).toString().padStart(4, '0')
+  incrementId = `${payload.year}${payload.code}${incrementId}`
+  return incrementId;
+}
+```
+- user.service.ts file updated 
+```js
+const createStudentIntoDB = async (password: string, payload: TStudent) => {
+  // create a user object
+  const userData:Partial<TUser> = {}
+  // if password is not given, use default password
+  userData.password = password || config.default_pass as string
+  // set student role
+  userData.role = 'student';
+  // find academic semester info 
+  const admissionSemester:TAcademicSemester | null = await AcademicSemesterModel.findById(payload.admissionSemester)
+  // set manually generated id
+  userData.id = await generateStudentId(admissionSemester!) 
+  // create a user
+  const newUser = await UserModel.create(userData)
+  // create a student
+  if(Object.keys(newUser).length) {
+    // set id, _id as user
+    payload.id = newUser.id //embedding id 
+    payload.user = newUser._id // reference _id 
+
+    const newStudent = await Student.create(payload)
+    return newStudent
+  }
+}
+
+export const UserServices = {
+  createStudentIntoDB
+}
+```

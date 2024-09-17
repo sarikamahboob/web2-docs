@@ -203,6 +203,17 @@
   - code 
   - startMonth
   - endMonth
+- Academic Faculty
+  - _id
+  - name
+  - createdAt
+  - updatedAt
+- Academic Department
+  - _id
+  - name
+  - academicFaculty
+  - createdAt
+  - updatedAt
 ## 11-4 Design Schema and ER Diagram
 - embedding and referencing 
   - mongodb can embed upto 16mb but there is no limitations for referencing

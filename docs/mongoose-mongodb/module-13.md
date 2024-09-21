@@ -492,3 +492,176 @@ const moduleRoutes = [
   },
 ]
 ```
+## 13-7 Handle department validation when creating _ updating document
+- academicDepartment.model.ts file updated
+```js
+academicDepartmentSchema.pre('save', async function (next) { 
+    const isDepartmentExist = await AcademicDepartment.findOne({
+      name: this.name,
+    })
+    if (isDepartmentExist) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Department with the same name already exists!')
+    }
+  next()
+})
+academicDepartmentSchema.pre('findOneAndUpdate', async function (next) {
+  const query = this.getQuery()
+  const isDepartmentExist = await AcademicDepartment.findOne(query)
+  if (!isDepartmentExist) {
+    throw new AppError(httpStatus.NOT_FOUND, 'This department does not exist!')
+  }
+  next()
+})
+export const AcademicDepartment = model<TAcademicDepartment>(
+  'AcademicDepartment',
+  academicDepartmentSchema,
+)
+```
+## 13-8 How to populate referencing fields & implement AppError class
+- to take the data of referencing id, we need to use populate 
+  - need to use the parameter name, what was given in the model
+- academicDepartment.service.ts file updated
+```js
+const getAllAcademicDepartmentsFromDB = async () => {
+  const result = await AcademicDepartment.find().populate('academicFaculty')
+  return result
+}
+
+const getSingleAcademicDepartmentFromDB = async (departmentId: string) => {
+  const result =
+    await AcademicDepartment.findById(departmentId).populate('academicFaculty')
+  return result
+}
+```
+- academicDepartment.service.ts file updated
+```js
+const getAllStudentsFromDB = async () => {
+  const result = await Student.find()
+    .populate('admissionSemester')
+    .populate({
+      path: 'academicDepartment',
+      populate: {
+        path: 'academicFaculty',
+      },
+    })
+  return result
+}
+
+const getSingleStudentFromDB = async (id: string) => {
+   const result = await Student.findById(id)
+     .populate('admissionSemester')
+     .populate({
+       path: 'academicDepartment',
+       populate: {
+         path: 'academicFaculty',
+       },
+     })
+  return result
+}
+```
+- globalErrorHandler.ts file updated
+```js
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextFunction, Request, Response } from "express"
+const globalErrorHandler = (err: any, req:Request, res: Response, next: NextFunction) => {
+  const statusCode:any = err.statusCode || 500
+  const message = err.message || 'something went wrong!'
+  return res.status(statusCode).json({ 
+    success: false,
+    message,
+    error: err
+  })
+}
+export default globalErrorHandler
+```
+- AppError.ts file made in the app directory within the errors folder
+```js
+class AppError extends Error {
+  public statusCode: number
+  constructor(statusCode: number, message: string, stack = '') {
+    super(message)
+    this.statusCode = statusCode
+    if (stack) {
+      this.stack = stack
+    } else {
+      Error.captureStackTrace(this, this.constructor)
+    }
+  }
+}
+export default AppError
+```
+## 13-9 Implement transaction & rollback
+- transaction and rollback has 4 properties
+  - A = atomicity
+    - the entire transaction takes place at once or doesn't happen at all
+    - it involves following 2 operaions
+      - abort: if a transaction aborts, changes made to the database are not visible
+      - commit: if a transaction commits, changes made to the database are visible
+    - atomacity is also known as "All or nothing rule"
+  - C = consistency
+    - ensures that the database maintains its integrity and keeps its balance
+    - it guarantees that relationships between pieces of data remain intact. For example, if you have data about a person and their address, consistency ensures that the person and their address are still connected after a transaction
+    - make sure that the changes made b one transaction don't interfere with the correctness of another
+  - I = isolation
+    - ensures that each transaction operates independently
+    - transactions dones't see each other's unfinished work. Each gets its own space to complete without disturbance
+    - even if lots of things are happening, transactions don't interrupt each other. The wait for their chance
+  - D = durability
+    - once you have something in the database, it stays saved, even if the power goes out or the system crashes
+    - changes made by the transaction are permanent. They don't disappear, not matter what happens next
+    - once you commit a change, it's there to stay
+    - even if the system has a hiccup ( like a sudden shutdown ), the data you saved remains safe and sound
+- when should we use transaction?
+  - two or more database write operations
+- we have to do transation between user and student
+  - we have to startSession() first which is given by mongoose
+  - then startTransaction(), first user database will do write operations and then student database will do write operations
+  - if both write operations are successful, then we will do commitTransaction() and will do endSession()
+  - if write operations fail, then we will do abortTransaction() and will do endSession() also
+  - startSession() => startTransaction() => commitTransaction() / abortTransaction() => endSession()
+  - user.service.ts file updated with the transaction
+```js
+  const createStudentIntoDB = async (password: string, payload: TStudent) => {
+  // create a user object
+  const userData:Partial<TUser> = {}
+  // if password is not given, use default password
+  userData.password = password || config.default_pass as string
+  // set student role
+  userData.role = 'student';
+  // find academic semester info 
+  const admissionSemester: TAcademicSemester | null = await AcademicSemesterModel.findById(payload.admissionSemester)
+
+  const session = await mongoose.startSession()
+  
+  try {
+    session.startTransaction()
+    // set manually generated id
+    userData.id = await generateStudentId(admissionSemester!)
+
+    // create a user (transaction-1)
+    // for transacton we have to give data as an array
+    const newUser = await UserModel.create([userData], { session }) // array
+
+    if (!newUser.length) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Failed to create user')
+    }
+    // set id, _id as user
+    payload.id = newUser[0].id //embedding id
+    payload.user = newUser[0]._id // reference _id
+
+    // create a student (transaction-2)
+    const newStudent = await Student.create([payload], { session })
+    if (!newStudent.length) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Failed to create student')
+    }
+    await session.commitTransaction()
+    await session.endSession()
+    return newStudent
+  } catch (error) {
+    await session.abortTransaction()
+    await session.endSession()
+    throw new AppError(httpStatus.BAD_REQUEST, 'Failed to create student')
+  }
+}
+```

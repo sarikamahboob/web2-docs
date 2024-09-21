@@ -557,7 +557,7 @@ academicSemesterSchema.pre('save', async function(next){
     year: this.year,
   })
   if(isSemesterExists) {
-    throw new Error(`Semester is already exists!`)
+    throw new AppError(httpStatus.CONFLICT, 'Semester is already exists!')
   }
   next()
 })
@@ -720,13 +720,15 @@ export const AcademicSemesterControllers = {
 ```
 - academiSemester.service.ts file updated
 ```js
+import httpStatus from "http-status";
+import AppError from "../../errors/AppError";
 import { academicSemesterNameCodeMapper } from "./academicSemester.constant";
 import { TAcademicSemester} from "./academicSemester.interface";
 import { AcademicSemesterModel } from "./academicSemester.model";
 
 const createAcademicSemesterIntoDB = async (payload:TAcademicSemester) => {
   if(academicSemesterNameCodeMapper[payload.name] !== payload.code) {
-    throw new Error('Invalid semester code!')
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid semester code!')
   }
   const result = await AcademicSemesterModel.create(payload);
   return result;
@@ -754,7 +756,7 @@ const updateAcademicSemesterIntoDB = async (
     payload.code &&
     academicSemesterNameCodeMapper[payload.name] !== payload.code
   ) {
-    throw new Error('Invalid Semester Name or Code')
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid Semester Name or Code!')
   }
   // if payload name is wrong
   if (
@@ -762,7 +764,7 @@ const updateAcademicSemesterIntoDB = async (
     !payload.code &&
     academicSemesterNameCodeMapper[payload.name] !== semesterCode?.code
   ) {
-    throw new Error('Invalid Semester Name')
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid Semester Name!')
   }
   // if payload code is wrong
   const semesterNameByCode = Object.keys(academicSemesterNameCodeMapper).find(
@@ -776,7 +778,7 @@ const updateAcademicSemesterIntoDB = async (
     payload.code &&
     semesterNameByCode !== semesterCode?.name
   ) {
-    throw new Error('Invalid Semester Code')
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid Semester Code!')
   }
   const result = await AcademicSemesterModel.findOneAndUpdate(
     { _id: semesterId },
@@ -814,6 +816,7 @@ export type TStudent = {
   localGuardian: TLocalGuardian
   profileImage?: string
   admissionSemester: Types.ObjectId
+  academicDepartment: Types.ObjectId
   isDeleted: boolean
 }
 ```
@@ -859,6 +862,7 @@ const createStudentValidationSchema = z.object({
       localGuardian: localGuardianValidationSchema,
       profileImage: z.string().optional(),
       admissionSemester: z.string(),
+      academicDepartment: z.string(),
       isDeleted: z.boolean(),
     }),
   }),
@@ -908,6 +912,10 @@ const studentSchema = new Schema<TStudent, StudentModel>({
     type: Schema.Types.ObjectId,
     ref: 'AcademicSemester'
   },
+   academicDepartment: {
+      type: Schema.Types.ObjectId,
+      ref: 'AcademicDepartment',
+    },
   isDeleted: {
     type: Boolean,
     default: false,

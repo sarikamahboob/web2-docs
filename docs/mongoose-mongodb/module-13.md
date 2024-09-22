@@ -621,6 +621,8 @@ export default AppError
   - if write operations fail, then we will do abortTransaction() and will do endSession() also
   - startSession() => startTransaction() => commitTransaction() / abortTransaction() => endSession()
   - user.service.ts file updated with the transaction
+- while creating data, we have to use array in case of transaction 
+  - while updating, we can use object in case of transaction and in the 3rd paramtere last data we will add session
 ```js
   const createStudentIntoDB = async (password: string, payload: TStudent) => {
   // create a user object
@@ -663,5 +665,196 @@ export default AppError
     await session.endSession()
     throw new AppError(httpStatus.BAD_REQUEST, 'Failed to create student')
   }
+}
+```
+## 13-10 Delete student using transaction & rollback
+- delete a student as well as an user from DB
+```js
+const deleteStudentFromDB = async (id: string) => {
+  const existingStudent = await Student.findOne({ id })
+  if (!existingStudent) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Student does not exist')
+  }
+  const existingUser = await UserModel.findOne({ id })
+  if (!existingUser) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User does not exist')
+  }
+  const session = await mongoose.startSession()
+  try {
+    session.startTransaction()
+    const deletedStudent = await Student.findOneAndUpdate(
+      { id },
+      { isDeleted: true },
+      {new: true, session}
+    )
+    if (!deletedStudent) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Failed to delete student')
+    }
+    const deletedUser = await UserModel.findOneAndUpdate(
+      { id },
+      { isDeleted: true },
+      { new: true, session },
+    )
+     if (!deletedUser) {
+       throw new AppError(httpStatus.BAD_REQUEST, 'Failed to delete user')
+     }
+    await session.commitTransaction()
+    await session.endSession()
+    return deletedStudent
+  } catch (error) {
+    await session.abortTransaction()
+    await session.endSession()
+    throw new AppError(httpStatus.BAD_REQUEST, 'Failed to delete student')
+  }
+}
+
+const updateSingleStudentFromDB = async (id: string, data: any) => {
+  const result = await Student.updateOne(
+    { id },
+    data
+  )
+  return result
+}
+```
+## 13-11 Dynamically update both primitive & non primitive fields
+- we can directly muted the primitive fields but we can't update directly non-primitive fields otherwise the non-primitive fields data can be replaced
+- student.zod.validation.ts file updated
+```js
+const updateUserNameValidationSchema = z.object({
+  firstName: z.string().min(1).max(20).optional(),
+  middleName: z.string().optional(),
+  lastName: z.string().optional(),
+})
+
+const updateGuardianValidationSchema = z.object({
+  fatherName: z.string().optional(),
+  fatherOccupation: z.string().optional(),
+  fatherContactNo: z.string().optional(),
+  motherName: z.string().optional(),
+  motherOccupation: z.string().optional(),
+  motherContactNo: z.string().optional(),
+})
+
+const updateLocalGuardianValidationSchema = z.object({
+  name: z.string().optional(),
+  occupation: z.string().optional(),
+  contactNo: z.string().optional(),
+  address: z.string().optional(),
+})
+
+export const updateStudentValidationSchema = z.object({
+  body: z.object({
+    student: z.object({
+      name: updateUserNameValidationSchema,
+      gender: z.enum(['male', 'female', 'other']).optional(),
+      dateOfBirth: z.string().optional(),
+      email: z.string().email().optional(),
+      contactNo: z.string().optional(),
+      emergencyContactNo: z.string().optional(),
+      bloogGroup: z
+        .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
+        .optional(),
+      presentAddress: z.string().optional(),
+      permanentAddress: z.string().optional(),
+      guardian: updateGuardianValidationSchema.optional(),
+      localGuardian: updateLocalGuardianValidationSchema.optional(),
+      admissionSemester: z.string().optional(),
+      academicDepartment: z.string().optional(),
+      profileImg: z.string().optional(),
+    }),
+  }),
+})
+
+export const StudentValidations = {
+  createStudentValidationSchema,
+  updateStudentValidationSchema,
+}
+```
+- student.route.ts file updated
+```js
+import express from 'express'
+import { StudentControllers } from './student.controller'
+import validateRequest from '../../middleware/validateRequest'
+import { updateStudentValidationSchema } from './student.zod.validation'
+
+const router = express.Router()
+
+router.get('/', StudentControllers.getAllStudents)
+router.get('/:studentId', StudentControllers.getSingleStudent)
+router.delete('/:studentId', StudentControllers.deleteStudent)
+router.patch(
+  '/:studentId',
+  validateRequest(updateStudentValidationSchema),
+  StudentControllers.updateSingleStudent,
+)
+
+export const StudentRoutes = router
+```
+## 13-12 Implement logic to handle dynamically update non-primitive fields
+- student.controller.ts file updated
+```js
+const updateSingleStudent = catchAsync(async (req, res, next) => {
+    const { student } = req.body
+    const { studentId } = req.params
+    const result = await StudentServices.updateSingleStudentIntoDB(
+      studentId,
+      student,
+    )
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'students is updated successfully',
+      data: result,
+    })
+})
+
+export const StudentControllers = {
+  getAllStudents,
+  getSingleStudent,
+  deleteStudent,
+  updateSingleStudent
+}
+```
+- student.service.ts file updated
+```js
+
+const updateSingleStudentIntoDB = async (
+  id: string,
+  payload: Partial<TStudent>,
+) => {
+
+  const { name, guardian, localGuardian, ...remainingStudentData } = payload
+
+  const modifiedUpdatedData: Record<string, unknown> = {
+    ...remainingStudentData,
+  }
+  if (name && Object.keys(name).length) {
+    for (const [key, value] of Object.entries(name)) { 
+      modifiedUpdatedData[`name.${key}`] = value
+    }
+  }
+  if (guardian && Object.keys(guardian).length) {
+    for (const [key, value] of Object.entries(guardian)) {
+      modifiedUpdatedData[`guardian.${key}`] = value
+    }
+  }
+  if (localGuardian && Object.keys(localGuardian).length) {
+    for (const [key, value] of Object.entries(localGuardian)) {
+      modifiedUpdatedData[`localGuardian.${key}`] = value
+    }
+  }
+
+  const result = await Student.findOneAndUpdate({ id }, modifiedUpdatedData, {
+    new: true,
+    runValidators: true,
+  })
+  return result
+}
+
+export const StudentServices = {
+  getAllStudentsFromDB,
+  getSingleStudentFromDB,
+  deleteStudentFromDB,
+  updateSingleStudentIntoDB,
 }
 ```
